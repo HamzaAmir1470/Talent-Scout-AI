@@ -1,0 +1,35 @@
+{
+  "name": "ai-service",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main"
+  },
+  "dependencies": {
+    "@google/genai": "^2.30.0",
+    "@nestjs/common": "^11.1.19",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.1.19",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/microservices": "^11.1.19",
+    "@nestjs/mongoose": "^11.0.3",
+    "@nestjs/platform-express": "^11.1.19",
+    "@nestjs/platform-socket.io": "^11.1.19",
+    "@nestjs/websockets": "^11.1.19",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "mongoose": "^8.6.0",
+    "redis": "^4.7.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "socket.io": "^4.8.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

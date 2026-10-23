@@ -1,0 +1,19 @@
+# One image recipe for every NestJS service:  docker build -f deploy/Dockerfile.service --build-arg SERVICE=api-gateway .
+FROM node:20-alpine AS build
+ARG SERVICE
+RUN corepack enable
+WORKDIR /repo
+COPY . .
+RUN pnpm install --frozen-lockfile=false --filter ${SERVICE}...
+RUN pnpm --filter ${SERVICE} build
+RUN pnpm --filter ${SERVICE} deploy --prod /out
+
+FROM node:20-alpine
+ARG SERVICE
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /out/node_modules ./node_modules
+COPY --from=build /repo/apps/services/${SERVICE}/dist ./dist
+COPY --from=build /repo/apps/services/${SERVICE}/package.json ./package.json
+USER node
+CMD ["node", "dist/main.js"]

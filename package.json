@@ -1,0 +1,22 @@
+{
+  "name": "talent-scout-ai",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "multer": ">=2.3.0",
+      "lodash": ">=4.18.0",
+      "postcss": ">=8.5.18",
+      "qs": ">=6.16.0"
+    }
+  }
+}
