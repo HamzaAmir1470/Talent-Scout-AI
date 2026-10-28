@@ -4,6 +4,7 @@ import 'highlight.js/styles/github-dark.css';
 import './globals.css';
 import AuthBootstrap from '@/components/AuthBootstrap';
 import Footer from '@/components/Footer';
+import ProgressSync from '@/components/ProgressSync';
 import SearchPalette from '@/components/SearchPalette';
 import Toaster from '@/components/Toaster';
 import { SITE } from '@/lib/site';
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head>
       <body className={`${sans.variable} ${display.variable} ${mono.variable}`}>
         <AuthBootstrap />
+        <ProgressSync />
         {children}
         <Footer />
         <SearchPalette />

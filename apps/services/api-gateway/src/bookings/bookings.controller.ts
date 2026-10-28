@@ -8,7 +8,7 @@ import { CacheService } from '../common/cache.service';
 import { rpc } from '../rpc';
 import { CreateBookingDto, RescheduleDto } from './bookings.dto';
 
-type Req_ = { user: { sub: string } };
+type Req_ = { user: { sub: string; name?: string; email?: string } };
 
 const stamp = (iso: string) => new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 const esc = (s: string) => s.replace(/[\\;,]/g, (m) => '\\' + m).replace(/\n/g, '\\n');
@@ -29,7 +29,7 @@ export class BookingsController {
     if (!subject) throw new BadRequestException('Unknown subject');
     if (!dto.instant && !dto.scheduledAt) throw new BadRequestException('Pick a date and time');
     return rpc(this.scheduler, 'scheduler.book', {
-      ...dto, userId: req.user.sub, subjectName: subject.name,
+      ...dto, userId: req.user.sub, subjectName: subject.name, candidateName: req.user.name, candidateEmail: req.user.email,
       candidateRole: dto.candidateRole.replace(/[\u0000-\u001f]/g, ' ').trim(),
     });
   }

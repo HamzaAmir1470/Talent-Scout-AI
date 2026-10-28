@@ -1,4 +1,4 @@
-# Talent Scout AI
+# Talent Scout AI (version 2.0)
 
 Learn the stack, drill real interview questions and rehearse spoken mock interviews with an AI interviewer that scores you.
 
@@ -79,6 +79,19 @@ then place the topic in `LAYOUT` inside `seed/data.ts` and bump `SEED_VERSION`. 
 | scheduler-service | 4003 | Bookings, reschedule, cancel, overlap and quota rules, missed-slot cron |
 | ai-service | 4004 / 4014 | Socket.IO voice room, Gemini interviewer, scoring, reports, stats |
 
+## How an interview runs
+
+1. **Introduction**: a scripted welcome that names the interviewer, the role and the time, then asks **"Tell me about yourself."** A follow-up probes what you said.
+2. **Experience**: a walk-through of one relevant project.
+3. **Technical**: questions on the chosen technology, from fundamentals to scenarios, with follow-ups and hints.
+4. **Behavioral**: a STAR question (Situation, Task, Action, Result) with a probe for any missing part.
+5. **Your questions**: time for you to ask the interviewer.
+6. **Wrap-up**: a polite close, then your scored report.
+
+The server moves between stages using the clock and your answers (`ai-service/src/interview/stages.ts`), so the structure holds even if the model drifts.
+The interviewer treats every candidate the same, stays job-focused and never asks about protected personal characteristics.
+Reports score technical accuracy 35%, depth 25%, communication 20% and interview skills 20% (introduction, STAR answers, professionalism).
+
 ## Voice interview flow
 
 1. Book a slot (or **Start now**). The room opens 10 minutes before the start time.
@@ -86,6 +99,11 @@ then place the topic in `LAYOUT` inside `seed/data.ts` and bump `SEED_VERSION`. 
    Browsers without it (mainly Firefox) stream audio chunks and the server transcribes them with Gemini. Typing always works.
 3. Gemini answers as a topic-specific interviewer. Text streams to the screen and is spoken sentence by sentence.
 4. Ending the session scores technical accuracy (45%), depth (30%) and communication (25%) with Gemini structured output.
+
+## Email
+
+Set `SMTP_URL` (for example `smtps://user:pass@smtp.example.com`) and `MAIL_FROM` to send password reset links, booking confirmations and 30 minute reminders.
+With no SMTP in development, the messages are printed in the `auth-service` and `scheduler-service` logs, so you can test the flows locally.
 
 ## Production checklist (built in)
 
@@ -97,7 +115,7 @@ then place the topic in `LAYOUT` inside `seed/data.ts` and bump `SEED_VERSION`. 
 
 ## Deploy
 
-    cp .env.example .env     # set JWT_SECRET (openssl rand -base64 48), GEMINI_API_KEY, ADMIN_EMAIL, ADMIN_PASSWORD, PUBLIC_URL
+    cp .env.example .env     # set JWT_SECRET (openssl rand -base64 48), GEMINI_API_KEY, ADMIN_EMAIL, ADMIN_PASSWORD, SMTP_URL, PUBLIC_URL
     docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 
 Terminate TLS in front of Nginx. Browsers only allow microphone access over HTTPS (or localhost).
@@ -107,11 +125,11 @@ Scale the interview tier with `docker compose up -d --scale ai-service=3`.
 
 The pricing page is live but billing is not. Add Stripe, enforce per-plan quotas in `scheduler-service` and `ai-service`,
 send email reminders, and have a lawyer review the privacy policy and terms (they are plain-language drafts).
-Also set a real support address in `apps/web/src/lib/site.ts`.
+Also set a real support address in `apps/web/src/lib/site.ts`. Phone numbers are stored but not verified by SMS yet (planned for version 3).
 
 ## API
 
-    POST /auth/register | login | refresh | logout | logout-all | change-password     GET /auth/me
+    POST /auth/register | login | refresh | logout | logout-all | change-password | forgot-password | reset-password   GET|PUT /auth/progress     GET /auth/me
     GET|PATCH|POST|PUT|DELETE /admin/...   (administrators only)
     GET  /content/subjects | topics | topics/:subject/:topic | questions
     POST /bookings   GET /bookings?view=upcoming|past   PATCH /bookings/:id/reschedule | cancel   GET /bookings/:id/ics

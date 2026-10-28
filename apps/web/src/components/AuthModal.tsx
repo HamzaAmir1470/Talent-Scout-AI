@@ -118,7 +118,7 @@ export default function AuthModal({ mode, onModeChange, onClose }: { mode: AuthM
           {register ? 'Already have an account?' : 'New here?'}{' '}
           <button className="link" onClick={() => onModeChange(register ? 'login' : 'register')}>{register ? 'Log in' : 'Create an account'}</button>
         </p>
-        {!register && <p className="mt-2 text-center text-xs text-muted">Forgot your password? <Link href="/contact?topic=support" className="link" onClick={onClose}>Contact support</Link></p>}
+        {!register && <p className="mt-2 text-center text-xs text-muted">Forgot your password? <Link href="/forgot-password" className="link" onClick={onClose}>Reset it</Link></p>}
       </div>
     </div>
   );

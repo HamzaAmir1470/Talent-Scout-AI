@@ -35,7 +35,10 @@ export interface Persona { subject: string; interviewer: string; title: string; 
 
 export interface QuestionFeedback { question: string; answerSummary: string; score: number; feedback: string }
 export interface Report {
-  overall: number; technicalAccuracy: number; depth: number; communication: number;
+  overall: number; technicalAccuracy: number; depth: number; communication: number; interviewSkills?: number;
+  introduction?: { score: number; feedback: string };
+  behavioral?: { score: number; feedback: string; missing: string[] };
+  professionalism?: { score: number; feedback: string };
   verdict: 'Strong hire' | 'Hire' | 'Borderline' | 'Needs more practice';
   summary: string; strengths: string[]; improvements: string[]; studyPlan: string[];
   questions: QuestionFeedback[]; demo?: boolean;
@@ -48,7 +51,7 @@ export interface SessionSummary {
 export interface SessionDetail {
   id: string; bookingId: string; subject: string; subjectName: string; candidateRole: string; level: string;
   status: string; mode: string; startedAt: string; endedAt?: string; durationSec?: number;
-  messages: { role: 'assistant' | 'candidate'; text: string; at: string }[]; report: Report | null;
+  messages: { role: 'assistant' | 'candidate'; text: string; at: string; stage?: string }[]; report: Report | null;
 }
 export interface Stats {
   sessions: number; avgOverall: number; avgTechnicalAccuracy: number; avgDepth: number; avgCommunication: number;

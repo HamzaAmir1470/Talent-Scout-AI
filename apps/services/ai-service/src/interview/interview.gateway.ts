@@ -59,7 +59,7 @@ export class InterviewGateway implements OnGatewayConnection {
 
       socket.emit('session:ready', {
         sessionId: d.sessionId, resumed, messages: msgs, endsAt, durationMin: booking.durationMin,
-        serverStt: this.stt.enabled, demo: this.svc.demo,
+        serverStt: this.stt.enabled, demo: this.svc.demo, stage: (session as any).stage ?? 'intro',
         persona: { name: persona.interviewer, title: persona.title },
       });
 
@@ -130,7 +130,7 @@ export class InterviewGateway implements OnGatewayConnection {
         socket.emit('ai:error', { message: 'This interview reached its length limit. Please end the session.' });
         return { ok: false };
       }
-      await this.svc.addMessage(d.sessionId, 'candidate', text);
+      await this.svc.addMessage(d.sessionId, 'candidate', text, undefined, s.stage);
       await this.turn(socket);
       return { ok: true };
     } catch (e) {
@@ -143,8 +143,8 @@ export class InterviewGateway implements OnGatewayConnection {
     d.busy = true;
     socket.emit('ai:thinking');
     try {
-      const text = await this.svc.interviewerTurn(d.sessionId!, (t) => socket.emit('ai:delta', { text: t }));
-      socket.emit('ai:done', { text });
+      const { text, stage } = await this.svc.interviewerTurn(d.sessionId!, (t) => socket.emit('ai:delta', { text: t }));
+      socket.emit('ai:done', { text, stage });
     } catch (e) {
       this.log.warn(`Interviewer turn failed: ${(e as Error).message}`);
       socket.emit('ai:error', { message: 'The interviewer lost the connection for a moment. Please repeat your answer.' });

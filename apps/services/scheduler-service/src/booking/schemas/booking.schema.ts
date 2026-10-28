@@ -15,6 +15,9 @@ export class InterviewBooking {
   @Prop({ required: true, enum: STATUSES, default: 'scheduled' }) status: string;
   @Prop() sessionId?: string;
   @Prop({ default: 0 }) rescheduleCount: number;
+  @Prop() candidateName?: string;
+  @Prop() candidateEmail?: string;
+  @Prop() reminderSentAt?: Date;
 }
 export type BookingDocument = HydratedDocument<InterviewBooking>;
 export const BookingSchema = SchemaFactory.createForClass(InterviewBooking);

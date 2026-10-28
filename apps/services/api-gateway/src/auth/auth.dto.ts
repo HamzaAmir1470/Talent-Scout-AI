@@ -22,3 +22,12 @@ export class ChangePasswordDto {
   @IsString() @MaxLength(72) current: string;
   @IsString() @Length(10, 72) next: string;
 }
+
+export class ForgotPasswordDto {
+  @Transform(trim) @IsEmail() @MaxLength(120) email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString() @Length(20, 100) token: string;
+  @IsString() @Length(10, 72, { message: 'Password must be 10 to 72 characters' }) password: string;
+}

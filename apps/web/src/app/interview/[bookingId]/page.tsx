@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, Clock, Loader2, Mic, MicOff, PhoneOff, Rep
 import Header from '@/components/Header';
 import RequireAuth from '@/components/RequireAuth';
 import ReportView from '@/components/ReportView';
+import StageTracker from '@/components/StageTracker';
 import Waveform from '@/components/Waveform';
 import { ErrorBox, Skeleton } from '@/components/Skeleton';
 import { useApi } from '@/lib/useApi';
@@ -99,12 +100,13 @@ function Room({ id }: { id: string }) {
             <dl className="mt-4 space-y-3 text-sm">
               {[['Role', b.candidateRole], ['Level', b.level], ['Length', `${b.durationMin} minutes`], ['Scheduled', WHEN.format(new Date(b.scheduledAt))]].map(([k, v]) => <div key={k} className="flex justify-between gap-4"><dt className="text-muted">{k}</dt><dd className="text-right font-medium">{v}</dd></div>)}
             </dl>
-            <h2 className="mt-7 font-sans text-sm font-semibold">What to expect</h2>
-            <ul className="mt-3 space-y-2 text-sm text-muted">
-              <li>The interviewer asks one question at a time and listens.</li>
-              <li>Pause when you finish and it will reply. You can ask it to repeat.</li>
-              <li>You get a scored report when you end the session.</li>
-            </ul>
+            <h2 className="mt-7 font-sans text-sm font-semibold">How the interview runs</h2>
+            <ol className="mt-3 space-y-2 text-sm text-muted">
+              {[['Introduction', 'It starts with "Tell me about yourself".'], ['Experience', 'A walk through your relevant work.'], ['Technical', `Questions on ${b.subjectName}, from basics to scenarios.`], ['Behavioral', 'A situation question. Answer with STAR.'], ['Your questions', 'Time for you to ask the interviewer.'], ['Wrap-up', 'A short close, then your scored report.']].map(([t, d], i) => (
+                <li key={t} className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-subtle text-[11px] font-semibold text-ink">{i + 1}</span><span><b className="text-ink">{t}.</b> {d}</span></li>
+              ))}
+            </ol>
+            <p className="mt-4 rounded-lg bg-subtle p-3 text-xs text-muted">Answer out loud and pause when you finish. Say &quot;could you repeat that&quot; any time. Interviews are fair and job-focused: no personal questions are asked.</p>
           </section>
           <section className="card p-6">
             <div className="h-24 rounded-lg bg-subtle"><Waveform analyser={room.analyser} mode={micTested ? 'listening' : 'idle'} /></div>
@@ -146,7 +148,8 @@ function Room({ id }: { id: string }) {
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         <section className="card flex flex-col p-5">
-          <div className="relative min-h-[200px] flex-1 rounded-lg bg-subtle/70 sm:min-h-[260px]"><Waveform analyser={room.analyser} mode={room.orb} /></div>
+          <StageTracker stage={room.stage} />
+          <div className="relative mt-4 min-h-[170px] flex-1 rounded-lg bg-subtle/70 sm:min-h-[220px]"><Waveform analyser={room.analyser} mode={room.orb} /></div>
           <p className="mt-4 text-center text-sm font-medium" aria-live="polite">{room.recording ? 'Recording. Tap the mic to send.' : STATE[room.orb]}</p>
           {room.notice && <p className="mt-2 text-center text-sm text-warn" role="alert">{room.notice}</p>}
           <div className="mt-5 flex flex-wrap items-start justify-center gap-2 sm:gap-4">
@@ -157,6 +160,9 @@ function Room({ id }: { id: string }) {
             <Ctl label="Repeat" onClick={room.repeatQuestion}><Repeat size={20} /></Ctl>
             <Ctl label="End" onClick={() => setConfirmEnd(true)} danger><PhoneOff size={20} /></Ctl>
           </div>
+          {(room.stage === 'closing' || room.stage === 'done') && !room.aiDraft && room.orb === 'idle' && !confirmEnd && (
+            <div className="mt-5 text-center"><button className="btn-primary px-6 py-3" onClick={room.endSession}>The interview is complete. Get my report</button></div>
+          )}
           {confirmEnd && (
             <div className="mt-5 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-bad/30 bg-bad/10 p-3 text-sm" role="alertdialog" aria-label="Confirm end interview">
               <span>End the interview and get your report?</span>

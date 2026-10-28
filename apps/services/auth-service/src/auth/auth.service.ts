@@ -6,7 +6,9 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import { isValidObjectId, Model } from 'mongoose';
+import { MailService } from './mail.service';
 import { passwordProblem } from './password';
+import { PasswordReset, PasswordResetDocument } from './schemas/password-reset.schema';
 import { AuditDocument, AuditLog } from './schemas/audit.schema';
 import { RefreshToken, RefreshTokenDocument } from './schemas/refresh-token.schema';
 import { User, UserDocument } from './schemas/user.schema';
@@ -30,6 +32,8 @@ export class AuthService implements OnApplicationBootstrap {
     @InjectModel(User.name) readonly users: Model<UserDocument>,
     @InjectModel(RefreshToken.name) readonly tokens: Model<RefreshTokenDocument>,
     @InjectModel(AuditLog.name) readonly logs: Model<AuditDocument>,
+    @InjectModel(PasswordReset.name) readonly resets: Model<PasswordResetDocument>,
+    private readonly mail: MailService,
     private readonly jwt: JwtService,
     private readonly cfg: ConfigService,
   ) {}
@@ -64,7 +68,7 @@ export class AuthService implements OnApplicationBootstrap {
   }
 
   private async issue(user: any, ctx: Ctx, family = randomUUID()) {
-    const accessToken = this.jwt.sign({ sub: String(user._id), email: user.email, role: user.role });
+    const accessToken = this.jwt.sign({ sub: String(user._id), email: user.email, role: user.role, name: user.name });
     const refreshToken = randomBytes(48).toString('base64url');
     const days = Number(this.cfg.get('REFRESH_TOKEN_DAYS', 7));
     await this.tokens.create({
@@ -166,6 +170,36 @@ export class AuthService implements OnApplicationBootstrap {
     await this.users.updateOne({ _id: u._id }, { $set: { passwordHash: await bcrypt.hash(d.next, COST), passwordChangedAt: new Date() } });
     await this.revokeAll(String(u._id));
     await this.audit({ actorId: String(u._id), actorEmail: u.email, action: 'password.changed', ip: d.ip });
+    return { ok: true };
+  }
+
+  /** Always answers the same way, so nobody can use this form to find out which emails have accounts. */
+  async forgotPassword(d: { email: string } & Ctx) {
+    const email = String(d.email).toLowerCase().trim();
+    const user: any = await this.users.findOne({ email });
+    if (user && user.status !== 'suspended') {
+      await this.resets.updateMany({ userId: String(user._id), usedAt: null as any }, { $set: { usedAt: new Date() } });
+      const raw = randomBytes(32).toString('base64url');
+      await this.resets.create({ userId: String(user._id), tokenHash: sha256(raw), expiresAt: new Date(Date.now() + 30 * 60_000) });
+      await this.mail.send(email, 'Reset your Talent Scout AI password', 'Reset your password',
+        [`Hi ${String(user.name).split(' ')[0]}, we received a request to reset your password.`, 'This link works for 30 minutes and can be used once. If you did not ask for it, you can ignore this email.'],
+        { label: 'Choose a new password', url: `${this.mail.origin}/reset-password?token=${raw}` });
+    }
+    await this.audit({ actorEmail: email, action: 'password.reset_requested', ip: d.ip });
+    return { ok: true };
+  }
+
+  async resetPassword(d: { token: string; password: string } & Ctx) {
+    const rec: any = d.token ? await this.resets.findOne({ tokenHash: sha256(String(d.token)) }) : null;
+    if (!rec || rec.usedAt || new Date(rec.expiresAt).getTime() < Date.now()) throw fail(400, 'This reset link is invalid or has expired. Request a new one.');
+    const user: any = isValidObjectId(rec.userId) ? await this.users.findById(rec.userId) : null;
+    if (!user) throw fail(400, 'This reset link is invalid or has expired. Request a new one.');
+    const problem = passwordProblem(d.password, user.email);
+    if (problem) throw fail(400, problem);
+    await this.users.updateOne({ _id: user._id }, { $set: { passwordHash: await bcrypt.hash(d.password, COST), passwordChangedAt: new Date(), failedLogins: 0, lockUntil: null } });
+    await this.resets.updateOne({ _id: rec._id }, { $set: { usedAt: new Date() } });
+    await this.revokeAll(String(user._id));
+    await this.audit({ actorId: String(user._id), actorEmail: user.email, action: 'password.reset_completed', ip: d.ip });
     return { ok: true };
   }
 }

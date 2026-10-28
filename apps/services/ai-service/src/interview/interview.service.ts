@@ -5,7 +5,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
 import { firstValueFrom, timeout } from 'rxjs';
 import { LlmService } from './llm.service';
-import { PERSONAS, buildSystemPrompt, getPersona, TIME_UP_NOTE } from './personas';
+import { PERSONAS, buildSystemPrompt, getPersona } from './personas';
+import { DONE_MESSAGE, nextStage, openingMessage, Stage, stageGuide } from './stages';
 import { InterviewSession, SessionDocument } from './schemas/session.schema';
 import { ApiError, Msg } from './types';
 
@@ -54,7 +55,7 @@ export class InterviewService {
     const now = new Date();
     const session = await this.model.create({
       userId, bookingId, subject: booking.subject, subjectName: booking.subjectName,
-      candidateRole: booking.candidateRole, level: booking.level, startedAt: now,
+      candidateRole: booking.candidateRole, level: booking.level, candidateName: booking.candidateName, startedAt: now, stage: 'intro', stageAnswers: 0,
       endsAt: new Date(now.getTime() + booking.durationMin * 60_000),
       mode: this.llm.demo ? 'demo' : 'gemini',
     });
@@ -62,8 +63,8 @@ export class InterviewService {
     return { session, booking, resumed: false };
   }
 
-  async addMessage(id: string, role: Msg['role'], text: string, usage?: { inputTokens: number; outputTokens: number }) {
-    const update: any = { $push: { messages: { role, text, at: new Date() } } };
+  async addMessage(id: string, role: Msg['role'], text: string, usage?: { inputTokens: number; outputTokens: number }, stage?: string) {
+    const update: any = { $push: { messages: { role, text, at: new Date(), stage } } };
     if (usage) update.$inc = { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
     await this.model.updateOne({ _id: id }, update);
   }
@@ -72,20 +73,51 @@ export class InterviewService {
     return this.model.findById(id).lean();
   }
 
-  /** Streams the interviewer's next turn and stores it. */
-  async interviewerTurn(sessionId: string, onDelta: (t: string) => void) {
+  /**
+   * Produces the interviewer's next turn. The opening is a fixed professional welcome that ends with "Tell me about yourself".
+   * After that the server advances the stage (follow-up, experience, technical, behavioral, questions, closing) and the model only
+   * has to write the next question for that stage.
+   */
+  async interviewerTurn(sessionId: string, onDelta: (t: string) => void): Promise<{ text: string; stage: Stage }> {
     const s: any = await this.getSessionDoc(sessionId);
     if (!s) throw new ApiError('Session not found', 'not_found');
     const persona = getPersona(s.subject);
-    const left = new Date(s.endsAt).getTime() - Date.now();
-    const system = buildSystemPrompt({
-      persona, candidateRole: s.candidateRole, level: s.level,
-      durationMin: Math.round((new Date(s.endsAt).getTime() - new Date(s.startedAt).getTime()) / 60_000),
-      subjectName: s.subjectName ?? s.subject,
-    }) + (left <= 0 ? TIME_UP_NOTE : '');
-    const res = await this.llm.interviewTurn({ system, history: s.messages, persona, onDelta });
-    await this.addMessage(sessionId, 'assistant', res.text, res);
-    return res.text;
+    const startMs = new Date(s.startedAt).getTime();
+    const totalMs = Math.max(60_000, new Date(s.endsAt).getTime() - startMs);
+    const f = (Date.now() - startMs) / totalMs;
+    const subjectName = s.subjectName ?? s.subject;
+    const durationMin = Math.round(totalMs / 60_000);
+    let stage: Stage = (s.stage as Stage) ?? 'intro';
+    let stageAnswers: number = s.stageAnswers ?? 0;
+    let text: string;
+    let usage = { inputTokens: 0, outputTokens: 0 };
+
+    const speak = async (t: string) => { for (const w of t.split(' ')) { onDelta(w + ' '); await new Promise((r) => setTimeout(r, 18)); } return t; };
+
+    if (s.messages.length === 0) {
+      stage = 'intro'; stageAnswers = 0;
+      text = await speak(openingMessage({ name: s.candidateName, persona, candidateRole: s.candidateRole, subjectName, durationMin }));
+    } else {
+      stageAnswers += 1; // the candidate just answered a question asked in `stage`
+      const next = nextStage(stage, stageAnswers, f);
+      if (next !== stage) { stage = next; stageAnswers = 0; }
+      if (stage === 'done') {
+        text = await speak(DONE_MESSAGE);
+      } else {
+        const techIndex = s.messages.filter((m: any) => m.role === 'candidate' && m.stage === 'technical').length + 1;
+        const ctx = { minutesLeft: Math.max(0, Math.round((new Date(s.endsAt).getTime() - Date.now()) / 60_000)), techIndex, subjectName, candidateRole: s.candidateRole, level: s.level, persona };
+        const system = buildSystemPrompt({ persona, candidateRole: s.candidateRole, level: s.level, durationMin, subjectName }) + stageGuide(stage, ctx);
+        const res = await this.llm.interviewTurn({ system, history: s.messages, persona, stage, ctx, onDelta });
+        text = res.text;
+        usage = { inputTokens: res.inputTokens, outputTokens: res.outputTokens };
+      }
+    }
+    await this.model.updateOne({ _id: sessionId }, {
+      $set: { stage, stageAnswers },
+      $push: { messages: { role: 'assistant', text, at: new Date(), stage } },
+      $inc: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
+    });
+    return { text, stage };
   }
 
   /** Scores the interview. Safe to call twice: only one caller wins the claim. */
@@ -126,7 +158,7 @@ export class InterviewService {
       id: String(s._id), bookingId: s.bookingId, subject: s.subject, subjectName: s.subjectName,
       candidateRole: s.candidateRole, level: s.level, status: s.status, mode: s.mode,
       startedAt: s.startedAt, endedAt: s.endedAt, durationSec: s.durationSec,
-      messages: s.messages, report: s.report ?? null,
+      messages: s.messages, report: s.report ?? null, stage: s.stage ?? 'intro',
     };
   }
 

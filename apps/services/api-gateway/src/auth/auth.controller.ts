@@ -1,9 +1,9 @@
-import { Body, Controller, ForbiddenException, Get, HttpException, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpException, Inject, Post, Put, Req, Res, UseGuards } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { rpc } from '../rpc';
-import { ChangePasswordDto, LoginDto, RegisterDto } from './auth.dto';
+import { ChangePasswordDto, ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto } from './auth.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 const COOKIE = 'tsa_rt';
@@ -47,6 +47,18 @@ export class AuthController {
     return this.respond(res, await rpc<AuthResult>(this.client, 'auth.login', { ...dto, ...this.ctx(req) }));
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('forgot-password')
+  forgot(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return rpc(this.client, 'auth.forgotPassword', { email: dto.email, ...this.ctx(req) });
+  }
+
+  @Throttle({ default: { limit: 8, ttl: 60_000 } })
+  @Post('reset-password')
+  reset(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return rpc(this.client, 'auth.resetPassword', { token: dto.token, password: dto.password, ...this.ctx(req) });
+  }
+
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('refresh')
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
@@ -79,6 +91,19 @@ export class AuthController {
   @Get('me')
   me(@Req() req: Request & { user: { sub: string } }) {
     return rpc(this.client, 'auth.profile', { userId: req.user.sub });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('progress')
+  progress(@Req() req: Request & { user: { sub: string } }) {
+    return rpc(this.client, 'auth.progress.get', { userId: req.user.sub });
+  }
+
+  /** Body is validated by the auth service, which caps sizes and checks every key. */
+  @UseGuards(JwtAuthGuard)
+  @Put('progress')
+  saveProgress(@Req() req: Request & { user: { sub: string } }, @Body() body: Record<string, unknown>) {
+    return rpc(this.client, 'auth.progress.put', { ...body, userId: req.user.sub });
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })

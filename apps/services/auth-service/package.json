@@ -1,6 +1,6 @@
 {
   "name": "auth-service",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
@@ -17,6 +17,7 @@
     "@nestjs/platform-express": "^11.1.19",
     "bcryptjs": "^2.4.3",
     "mongoose": "^8.6.0",
+    "nodemailer": "^10.2.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -25,6 +26,7 @@
     "@nestjs/schematics": "^11.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.0",
+    "@types/nodemailer": "^8.0.2",
     "typescript": "^5.5.0"
   }
 }

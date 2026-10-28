@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
+import { MailService } from './mail.service';
 import { BookingDocument, InterviewBooking, STATUSES } from './schemas/booking.schema';
 
 const MIN = 60_000;
@@ -21,7 +22,18 @@ export class BookingService {
   constructor(
     @InjectModel(InterviewBooking.name) private readonly model: Model<BookingDocument>,
     private readonly cfg: ConfigService,
+    private readonly mail: MailService,
   ) {}
+
+  private when(d: Date) { return new Date(d).toLocaleString('en-GB', { dateStyle: 'full', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC'; }
+
+  private async confirmation(b: any, title: string) {
+    if (!b.candidateEmail) return;
+    await this.mail.send(b.candidateEmail, `${title}: ${b.subjectName} interview`, title, [
+      `Your ${b.subjectName} mock interview (${b.candidateRole}, ${b.level}) is set for ${this.when(b.scheduledAt)}. It lasts ${b.durationMin} minutes.`,
+      'The room opens 10 minutes before the start time. Use a quiet place and a microphone if you can.',
+    ], { label: 'Open the interview room', url: `${this.mail.origin}/interview/${b._id}` });
+  }
 
   private view(b: any) {
     const start = new Date(b.scheduledAt).getTime();
@@ -30,7 +42,7 @@ export class BookingService {
     const now = Date.now();
     return {
       id: String(b._id), userId: b.userId, subject: b.subject, subjectName: b.subjectName,
-      candidateRole: b.candidateRole, level: b.level, scheduledAt: new Date(b.scheduledAt).toISOString(),
+      candidateRole: b.candidateRole, level: b.level, candidateName: b.candidateName, scheduledAt: new Date(b.scheduledAt).toISOString(),
       durationMin: b.durationMin, status: b.status, sessionId: b.sessionId ?? null,
       rescheduleCount: b.rescheduleCount,
       joinOpensAt: new Date(opens).toISOString(), joinClosesAt: new Date(closes).toISOString(),
@@ -74,7 +86,10 @@ export class BookingService {
     const b = await this.model.create({
       userId: d.userId, subject: d.subject, subjectName: d.subjectName, candidateRole: d.candidateRole,
       level: d.level, scheduledAt: start, durationMin: d.durationMin,
+      candidateName: d.candidateName ? String(d.candidateName).slice(0, 60) : undefined,
+      candidateEmail: d.candidateEmail ? String(d.candidateEmail).slice(0, 120) : undefined,
     });
+    this.confirmation(b, 'Interview booked').catch(() => undefined);
     return this.view(b.toObject());
   }
 
@@ -101,7 +116,9 @@ export class BookingService {
     await this.assertNoOverlap(d.userId, start, b.durationMin, d.id);
     b.scheduledAt = start;
     b.rescheduleCount += 1;
+    b.reminderSentAt = undefined;
     await b.save();
+    this.confirmation(b, 'Interview rescheduled').catch(() => undefined);
     return this.view(b.toObject());
   }
 
@@ -180,6 +197,21 @@ export class BookingService {
   async deleteUser(d: { userId: string }) {
     const res = await this.model.deleteMany({ userId: String(d.userId) });
     return { deleted: res.deletedCount ?? 0 };
+  }
+
+  /** Emails a reminder about 30 minutes before each interview. */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async sendReminders() {
+    const due: any[] = await this.model.find({
+      status: 'scheduled', reminderSentAt: null as any, candidateEmail: { $exists: true, $ne: null },
+      scheduledAt: { $gt: new Date(), $lte: new Date(Date.now() + 30 * MIN) },
+    }).limit(100);
+    for (const b of due) {
+      const mins = Math.max(1, Math.round((new Date(b.scheduledAt).getTime() - Date.now()) / MIN));
+      await this.mail.send(b.candidateEmail, `Starting soon: ${b.subjectName} interview`, `Your interview starts in about ${mins} minutes`,
+        [`Your ${b.subjectName} mock interview begins at ${this.when(b.scheduledAt)}. The room is open now.`], { label: 'Join the room', url: `${this.mail.origin}/interview/${b._id}` });
+      await this.model.updateOne({ _id: b._id }, { $set: { reminderSentAt: new Date() } });
+    }
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)

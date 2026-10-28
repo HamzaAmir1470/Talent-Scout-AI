@@ -43,10 +43,11 @@ export default function ReportView({ report, subject, subjectName, role }: { rep
             {report.demo && <span className="chip text-amber-300">Demo scoring</span>}
           </div>
           <p className="mt-3 text-slate-200">{report.summary}</p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
+          <div className={`mt-5 grid gap-4 sm:grid-cols-2 ${report.interviewSkills !== undefined ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
             <Bar label="Technical accuracy" value={report.technicalAccuracy} delay={100} />
             <Bar label="Depth" value={report.depth} delay={250} />
             <Bar label="Communication" value={report.communication} delay={400} />
+            {report.interviewSkills !== undefined && <Bar label="Interview skills" value={report.interviewSkills} delay={550} />}
           </div>
         </div>
       </section>
@@ -61,6 +62,22 @@ export default function ReportView({ report, subject, subjectName, role }: { rep
           <ul className="mt-3 space-y-2 text-sm text-slate-300">{report.improvements.map((s, i) => <li key={i} className="flex gap-2"><span className="text-amber-400">→</span>{s}</li>)}</ul>
         </section>
       </div>
+
+      {report.introduction && report.behavioral && report.professionalism && (
+        <section className="glass p-6">
+          <h3 className="font-semibold text-white">Interview skills</h3>
+          <p className="mt-1 text-sm text-muted">How you handled the parts of the interview that every employer uses.</p>
+          <div className="mt-5 grid gap-5 md:grid-cols-3">
+            {[['Tell me about yourself', report.introduction], ['Behavioral answers (STAR)', report.behavioral], ['Professionalism', report.professionalism]].map(([title, part]: any) => (
+              <div key={title} className="rounded-lg border border-line p-4">
+                <div className="flex items-start justify-between gap-3"><span className="text-sm font-semibold">{title}</span><b className={`text-lg ${scoreColor(part.score)}`}>{part.score}</b></div>
+                <p className="mt-2 text-sm text-muted">{part.feedback}</p>
+                {part.missing?.length > 0 && <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted">Missing: {part.missing.map((m: string) => <span key={m} className="rounded border border-warn/40 bg-warn/10 px-1.5 py-0.5 font-medium text-warn">{m}</span>)}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {report.questions.length > 0 && (
         <section className="glass p-6">

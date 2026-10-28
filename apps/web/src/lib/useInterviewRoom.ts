@@ -5,6 +5,7 @@ import { refreshSession } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import type { OrbMode } from '@/components/Waveform';
 import type { Report } from './types';
+import type { Stage } from './stages';
 
 export type Phase = 'lobby' | 'connecting' | 'live' | 'ending' | 'report' | 'error';
 export type InputMode = 'browser' | 'server' | 'text';
@@ -38,6 +39,7 @@ export function useInterviewRoom(bookingId: string) {
   const [demo, setDemo] = useState(false);
   const [srSupported, setSrSupported] = useState(true);
   const [connected, setConnected] = useState(false);
+  const [stage, setStage] = useState<Stage>('intro');
 
   // mutable state that event handlers read without re-subscribing
   const socketRef = useRef<Socket | null>(null);
@@ -201,7 +203,7 @@ export function useInterviewRoom(bookingId: string) {
 
     socket.on('session:ready', (d: any) => {
       setNotice('');
-      setSessionId(d.sessionId); setDemo(Boolean(d.demo)); setPersona(d.persona);
+      setSessionId(d.sessionId); setDemo(Boolean(d.demo)); setPersona(d.persona); if (d.stage) setStage(d.stage);
       setMessages(d.messages ?? []);
       endsAt.current = d.endsAt;
       const next: InputMode = speechCtor() ? 'browser' : d.serverStt && micOk ? 'server' : 'text';
@@ -217,7 +219,8 @@ export function useInterviewRoom(bookingId: string) {
       sentenceBuf.current += text;
       flushSentences(false);
     });
-    socket.on('ai:done', ({ text }: { text: string }) => {
+    socket.on('ai:done', ({ text, stage: st }: { text: string; stage?: Stage }) => {
+      if (st) setStage(st);
       streaming.current = false;
       setMessages((m) => [...m, { role: 'assistant', text }]);
       setAiDraft('');
@@ -317,7 +320,7 @@ export function useInterviewRoom(bookingId: string) {
 
   return {
     phase, messages, aiDraft, interim, orb, muted, voiceOn, secondsLeft, report, sessionId, error, notice,
-    mode, recording, analyser, persona, demo, srSupported, connected,
+    mode, recording, analyser, persona, demo, srSupported, connected, stage,
     prepareMic, start, endSession, submit, toggleMute, toggleRecord, repeatQuestion, retry,
     setVoiceOn,
   };

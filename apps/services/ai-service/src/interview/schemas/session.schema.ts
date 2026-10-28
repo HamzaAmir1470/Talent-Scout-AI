@@ -15,8 +15,11 @@ export class InterviewSession {
   @Prop() endedAt?: Date;
   @Prop() durationSec?: number;
   @Prop({ default: 'gemini' }) mode: string;
-  @Prop({ type: [{ role: String, text: String, at: Date }], default: [] })
-  messages: { role: string; text: string; at: Date }[];
+  @Prop({ default: 'intro' }) stage: string;
+  @Prop({ default: 0 }) stageAnswers: number;
+  @Prop() candidateName?: string;
+  @Prop({ type: [{ role: String, text: String, at: Date, stage: String }], default: [] })
+  messages: { role: string; text: string; at: Date; stage?: string }[];
   @Prop({ type: Object }) report?: Record<string, any>;
   @Prop({ default: 0 }) inputTokens: number;
   @Prop({ default: 0 }) outputTokens: number;
